@@ -1,0 +1,13 @@
+Quote Entity Schema (Base44)
+
+id: string
+text: string
+author: string
+topic: string
+status: "pending" | "saved" | "publishing" | "published"
+imageUrl: string (optional)
+createdAt: date
+
+Purpose:
+- Stores quotes generated in admin app
+- Tracks whether saved or published

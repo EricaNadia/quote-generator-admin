@@ -1,0 +1,136 @@
+A) System diagram (ASCII block)
+┌─────────────────────────────────────────────────────────┐
+│               BASE44 (Admin Side)                       │
+│                                                         │
+│  React Frontend                                         │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │ 1. User enters topic                             │   │
+│  │ 2. "Generate" → Base44 AI integration (MOCK)    │   │
+│  │    Returns 4 quotes (text + fictional author)   │   │
+│  │ 3. Per quote: Save | Discard | Publish           │   │
+│  │    Save → entity status: "saved"                │   │
+│  │    Discard → entity deleted                     │   │
+│  │    Publish → triggers backend function           │   │
+│  └─────────────────────────────────────────────────┘   │
+│                        │                                │
+│  Base44 Backend Function (Deno)                         │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │ publishQuote(quoteId):                          │   │
+│  │   1. Generate image (AI, MOCK first)            │   │
+│  │   2. Update entity status → "published"         │   │
+│  │   3. POST to Wix HTTP Function with payload     │   │
+│  └─────────────────────────────────────────────────┘   │
+└──────────────────────────┬──────────────────────────────┘
+                           │ HTTPS POST
+                           │ { quoteText, topic, author, imageUrl }
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│               WIX SITE (Display Side)                   │
+│                                                         │
+│  HTTP Function (backend/http-functions.js)              │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │ post_publishQuote(request):                     │   │
+│  │   1. Validate shared secret header              │   │
+│  │   2. wixData.insert("Quotes", item)             │   │
+│  │   3. wixRealtimeBackend.publish("new-quote",    │   │
+│  │      insertedItem)                              │   │
+│  │   4. Return 200 OK                              │   │
+│  └─────────────────────────────────────────────────┘   │
+│                        │                                │
+│         ┌──────────────┴──────────────────┐            │
+│         ▼                                 ▼            │
+│  Wix CMS Collection               Realtime Channel     │
+│  "Quotes"                         "new-quote"          │
+│  (persistent store)               (event bus)          │
+│         │                                 │            │
+│         ▼                                 ▼            │
+│  Dynamic List Page (/quotes)      Page Frontend Code   │
+│  Dataset → Repeater               wix-realtime-        │
+│  (initial load, all quotes)       frontend.subscribe() │
+│                                   → prepend to         │
+│                                     repeater.data      │
+└─────────────────────────────────────────────────────────┘
+
+
+B) User flows
+Admin flow:
+
+Open admin app → see topic input + list of saved quotes (from entity store)
+Enter topic → click "Generate" → 4 quote cards appear (pending state)
+For each card:
+
+"Save" → POST to Base44 entity, status = saved, card persists in list
+"Discard" → DELETE entity (if saved) or just remove from UI (if not yet saved)
+"Publish" → trigger backend function → generate image → POST to Wix → update status = published → disable publish button on card
+
+
+Saved quotes persist across browser sessions (in Base44 entity store)
+
+Wix site visitor flow:
+
+Navigate to /quotes → dynamic list page loads → dataset fetches all CMS Quotes → repeater renders all quotes
+While on page, admin publishes a new quote → Realtime event fires → quote prepends to top of repeater (no refresh)
+
+
+
+C) Edge cases
+Network failure on publish: Base44 backend function should return error to React; show error toast; do not mark entity as published. Admin can retry.
+Duplicate Realtime + dataset: Quote already loaded from initial dataset fires again via Realtime. Dedup by quote ID before prepending.
+Wix site not published: HTTP function is inaccessible. Use test endpoint during development.
+Zero-state: Admin app with no quotes yet → show empty state with prompt to generate.
+Generate called twice: Guard the generate button (disable while loading) to prevent double credit spend.
+
+Data Lifecycle
+Base44 Entity: Quote
+  status: "pending" → "saved" → "published"
+  
+Generate → pending (in-memory, not yet saved)
+Save      → insert/upsert entity, status: saved
+Discard   → delete entity (if saved) or remove from state
+Publish   → backend function: generate image → POST Wix → 
+             update entity status: published → 
+             Wix: insert to CMS + broadcast Realtime
+
+
+D) System boundaries
+System Boundaries 
+What | Where | Why
+Quote drafts, admin state | Base44 entity store |  Admin-only data, managed by admin tooling
+AI calls (text + image) |  Base44 backend/integrations |  Credit management, keeps secrets off client
+Published quotes |  Wix CMS collection |  Public data, dataset-connected to Wix display
+Realtime broadcast |  Wix backend (Velo) |  Live updates on Wix site only
+HTTP integration contract |  Base44 backend → Wix HTTP function |  Decoupled systems via REST
+
+
+
+DESIGN GATE: HIGH-LEVEL ARCHITECTURE
+
+Component Breakdown
+Base44 Side:
+
+Quote entity: { id, topic, text, author, status, imageUrl, createdAt }
+React admin frontend: QuoteGenerator component, QuoteCard component, SavedQuotesList component
+Backend function: publishQuote(quoteId) — fetches entity, generates image, POSTs to Wix, updates status
+
+Wix Side:
+
+CMS Collection: Quotes { _id, quoteText, topic, author, imageUrl, _createdDate }
+HTTP Function: post_publishQuote in backend/http-functions.js
+Dynamic list page: /quotes with dataset bound to Quotes collection, repeater for display
+Page frontend code: Realtime subscription, prepend logic, dedup logic
+
+
+E) Integration contract  (HTTP payload)
+POST /_functions/publishQuote
+Headers: { "x-api-key": "<shared-secret>" }
+Body: {
+  "quoteText": "string",
+  "topic": "string",
+  "author": "string",
+  "imageUrl": "string (URL)"
+}
+
+Response 200: { "success": true, "itemId": "string" }
+Response 4xx/5xx: { "error": "string" }
+
+

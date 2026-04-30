@@ -1,0 +1,25 @@
+Quote Lifecycle
+
+1. Generate
+- User enters topic
+- 4 quotes created (mock)
+- status: pending (not saved)
+
+2. Save
+- Quote stored in Base44
+- status: saved
+
+3. Discard
+- If saved → delete from Base44
+- If pending → remove from UI
+
+4. Publish
+- Backend function triggered
+- Image generated
+- POST to Wix
+- status → published
+
+5. Wix Side
+- Quote inserted into CMS
+- Realtime event broadcast
+- Appears on site
