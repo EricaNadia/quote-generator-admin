@@ -5,7 +5,7 @@
   "site": {
     "buildCommand": "npm run build",
     "serveCommand": "npm run dev",
-    "outputDirectory": "./dist",
+    "outputDirectory": "./frontend/dist",
     "installCommand": "npm install",
     "rootDirectory": "./frontend"
   }
