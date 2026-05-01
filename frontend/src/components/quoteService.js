@@ -51,32 +51,22 @@ export async function generateImage(quoteText) {
   return response.url;
 }
 
-// ─── PUBLISH TO WIX ──────────────────────────────────────────────────────────
+// ─── PUBLISH VIA BASE44 BACKEND FUNCTION ─────────────────────────────────────
+// React calls Base44's backend function which holds all secrets.
+// React never sees the Wix endpoint URL or the shared secret.
 
 export async function publishToWix(quote, imageUrl) {
-  // This calls the Wix HTTP function we will build in Step 5.
-  // The URL will be updated once the Wix HTTP function is deployed.
-  const WIX_ENDPOINT = "https://PLACEHOLDER.wixsite.com/_functions/publishQuote";
-  const SECRET_KEY = "PLACEHOLDER_SECRET";
-
-  const response = await fetch(WIX_ENDPOINT, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": SECRET_KEY,
-    },
-    body: JSON.stringify({
-      quoteText: quote.quoteText,
-      topic: quote.topic,
-      author: quote.author,
-      imageUrl: imageUrl,
-    }),
+  // Note: imageUrl is passed here for API consistency but the backend
+  // function regenerates it server-side. This keeps the contract clean.
+  const result = await base44Client.functions.invoke("publishQuote", {
+    quoteText: quote.quoteText,
+    topic: quote.topic,
+    author: quote.author,
   });
 
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Wix publish failed: ${error}`);
+  if (result.error) {
+    throw new Error(result.error);
   }
 
-  return await response.json();
+  return result;
 }

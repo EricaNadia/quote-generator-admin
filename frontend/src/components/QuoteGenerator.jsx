@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import QuoteCard from "./QuoteCard";
-import { generateQuotes, publishToWix, generateImage } from "./quoteService";
+import { generateQuotes, publishToWix } from "./quoteService";
 
 export default function QuoteGenerator() {
   const [topic, setTopic] = useState("");
@@ -51,43 +51,40 @@ export default function QuoteGenerator() {
 
   // Fixed: Clear contract + safety guard
   async function handlePublish(quote) {
-    if (quote.status !== "saved") {
-      throw new Error("Quote must be saved before publishing.");
-    }
+  if (quote.status !== "saved") {
+    throw new Error("Quote must be saved before publishing.");
+  }
+
+  // Set status to publishing while we wait
+  setQuotes((prev) =>
+    prev.map((q) =>
+      q.id === quote.id ? { ...q, status: "publishing" } : q
+    )
+  );
+
+  try {
+    // Base44 backend function handles image generation and Wix call
+    await publishToWix({
+      quoteText: quote.quoteText,
+      topic: quote.topic,
+      author: quote.author,
+    });
 
     setQuotes((prev) =>
       prev.map((q) =>
-        q.id === quote.id ? { ...q, status: "publishing" } : q
+        q.id === quote.id ? { ...q, status: "published" } : q
       )
     );
-
-    try {
-      const imageUrl = await generateImage(quote.quoteText);
-
-      // Explicit translation layer to match what publishToWix expects
-      await publishToWix(
-        {
-          quoteText: quote.quoteText,
-          author: quote.author,
-          topic: quote.topic,
-        },
-        imageUrl
-      );
-
-      setQuotes((prev) =>
-        prev.map((q) =>
-          q.id === quote.id ? { ...q, status: "published" } : q
-        )
-      );
-    } catch (err) {
-      setQuotes((prev) =>
-        prev.map((q) =>
-          q.id === quote.id ? { ...q, status: "saved" } : q
-        )
-      );
-      throw err;
-    }
+  } catch (err) {
+    // Roll back to saved state on failure
+    setQuotes((prev) =>
+      prev.map((q) =>
+        q.id === quote.id ? { ...q, status: "saved" } : q
+      )
+    );
+    throw err;
   }
+}
 
   return (
     <div className="generator">

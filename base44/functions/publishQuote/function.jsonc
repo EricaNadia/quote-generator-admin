@@ -1,0 +1,6 @@
+{
+  "name": "publishQuote",
+  "entry": "index.ts",
+  "description": "Generates a quote image and publishes the quote to the Wix display site",
+  "timeout": 30
+}

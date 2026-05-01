@@ -1,11 +1,12 @@
 // Base44 Project Configuration
-   {
-     "name": "quote-generator-admin",
-     "site": {
-       "buildCommand": "npm run build",
-       "serveCommand": "npm run dev",
-       "outputDirectory": "./dist",
-       "installCommand": "npm install",
-       "rootDirectory": "./frontend"
-     }
-   }
+{
+  "name": "quote-generator-admin",
+  "functionsDir": "./functions",
+  "site": {
+    "buildCommand": "npm run build",
+    "serveCommand": "npm run dev",
+    "outputDirectory": "./dist",
+    "installCommand": "npm install",
+    "rootDirectory": "./frontend"
+  }
+}
