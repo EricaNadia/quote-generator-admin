@@ -14,29 +14,34 @@ export async function generateQuotes(topic) {
     return mockGenerateQuotes(topic);
   }
 
-  // REAL: calls Base44 AI integration (uses integration credits)
-  const response = await base44Client.integrations.ai.generateText({
+  // REAL: calls Base44 AI text generation (uses integration credits)
+  // Correct SDK method: base44Client.integrations.Core.InvokeLLM()
+  const response = await base44Client.integrations.Core.InvokeLLM({
     prompt: `Generate 4 fictional quotes about the topic: "${topic}".
-    Each quote should sound profound and be attributed to a fictional person.
-    Return ONLY a JSON array with this exact structure, no other text:
-    [
-      {"id": "1", "quoteText": "quote here", "author": "Fictional Name"},
-      {"id": "2", "quoteText": "quote here", "author": "Fictional Name"},
-      {"id": "3", "quoteText": "quote here", "author": "Fictional Name"},
-      {"id": "4", "quoteText": "quote here", "author": "Fictional Name"}
-    ]`,
+Each quote should sound profound and be attributed to a fictional person.
+Return ONLY a JSON array with this exact structure, no other text:
+[
+  {"id": "1", "quoteText": "quote here", "author": "Fictional Name"},
+  {"id": "2", "quoteText": "quote here", "author": "Fictional Name"},
+  {"id": "3", "quoteText": "quote here", "author": "Fictional Name"},
+  {"id": "4", "quoteText": "quote here", "author": "Fictional Name"}
+]`,
   });
 
   try {
-    return JSON.parse(response.text);
+    // InvokeLLM returns the text directly as a string
+    const text = typeof response === "string" ? response : response.text || response.result || JSON.stringify(response);
+    // Strip markdown code fences if present
+    const cleaned = text.replace(/```json|```/g, "").trim();
+    return JSON.parse(cleaned);
   } catch {
     throw new Error("AI returned unexpected format. Try again.");
   }
 }
 
 // ─── IMAGE GENERATION ────────────────────────────────────────────────────────
-// Called by the Base44 backend function (entry.ts) server-side.
-// This export is kept here for architectural completeness and testing.
+// Note: Image generation is also handled server-side in the Base44 backend
+// function (index.ts). This export exists for client-side testing only.
 
 export async function generateImage(quoteText) {
   if (USE_MOCK) {
@@ -45,12 +50,13 @@ export async function generateImage(quoteText) {
   }
 
   // REAL: calls Base44 image generation (uses integration credits)
-  const response = await base44Client.integrations.ai.generateImage({
+  // Correct SDK method: base44Client.integrations.Core.GenerateImage()
+  const { url } = await base44Client.integrations.Core.GenerateImage({
     prompt: `A minimalist, elegant background image for this quote: "${quoteText}". 
-    Abstract, no text, suitable for a quote card.`,
+Abstract, no text, suitable for a quote card.`,
   });
 
-  return response.url;
+  return url;
 }
 
 // ─── PUBLISH VIA BASE44 BACKEND FUNCTION ─────────────────────────────────────

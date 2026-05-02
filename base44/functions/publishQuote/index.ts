@@ -1,4 +1,5 @@
 // Base44 backend function: publishQuote
+//
 // Architecture role:
 //   React → base44.functions.invoke("publishQuote") → THIS FUNCTION → Wix HTTP function
 //
@@ -12,12 +13,12 @@
 import { createClientFromRequest } from "npm:@base44/sdk";
 
 // ── Mock configuration ────────────────────────────────────────────────────────
-// Set USE_MOCK = true to skip real AI image generation (saves credits).
+// USE_MOCK = true: returns placeholder image URL, costs zero credits.
+// USE_MOCK = false: calls real AI image generation, costs integration credits.
 // Switch to false only for final demo.
-const USE_MOCK = false; // was true
+const USE_MOCK = false;
 
-const MOCK_IMAGE_URL =
-  "https://placehold.co/600x400?text=Quote+Image";
+const MOCK_IMAGE_URL = "https://placehold.co/600x400?text=Quote+Image";
 
 // ── Main function handler ─────────────────────────────────────────────────────
 Deno.serve(async (req: Request) => {
@@ -36,24 +37,32 @@ Deno.serve(async (req: Request) => {
 
     // ── Step 2: Generate image ─────────────────────────────────────────────
     // Mock: returns placeholder URL, costs zero credits.
-    // Real: calls Base44 AI image generation, costs integration credits.
+    // Real: calls Base44 AI image generation via correct SDK method.
+    // Correct method: base44.integrations.Core.GenerateImage()
+    // Note capital G — base44.integrations.ai.generateImage() does not exist.
     let imageUrl: string;
 
     if (USE_MOCK) {
       imageUrl = MOCK_IMAGE_URL;
     } else {
-      // REAL image generation — only enable for final demo
-      const imageResult = await base44.integrations.ai.generateImage({
-        prompt: `Minimalist elegant background for this quote: "${quoteText}". 
-                 Abstract, no text, suitable for a quote card.`,
-      });
-      imageUrl = imageResult.url;
+      try {
+        const imageResult = await base44.integrations.Core.GenerateImage({
+          prompt: `Minimalist elegant background for this quote: "${quoteText}". 
+Abstract, no text, suitable for a quote card.`,
+        });
+        imageUrl = imageResult.url;
+      } catch (imgErr) {
+        // Image generation is non-fatal.
+        // If it fails, use placeholder so the quote still publishes.
+        console.error("Image generation failed, using placeholder:", (imgErr as Error).message);
+        imageUrl = MOCK_IMAGE_URL;
+      }
     }
 
     // ── Step 3: Read secrets from environment ──────────────────────────────
-    // WIX_ENDPOINT and PUBLISH_SECRET are read from environment variables set via:
-    // base44 secrets set WIX_ENDPOINT ...
-    // base44 secrets set PUBLISH_SECRET ...
+    // WIX_ENDPOINT and PUBLISH_SECRET are set via:
+    //   base44 secrets set WIX_ENDPOINT ...
+    //   base44 secrets set PUBLISH_SECRET ...
     // These values never appear in client-side code or version control.
     const wixEndpoint = Deno.env.get("WIX_ENDPOINT");
     const publishSecret = Deno.env.get("PUBLISH_SECRET");
@@ -66,6 +75,8 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── Step 4: POST to Wix HTTP function ─────────────────────────────────
+    // x-api-key header is validated server-side by the Wix HTTP function.
+    // The React frontend never sees this secret.
     const wixPayload = {
       quoteText,
       topic,
@@ -77,7 +88,6 @@ Deno.serve(async (req: Request) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        // This header is validated by the Wix HTTP function
         "x-api-key": publishSecret,
       },
       body: JSON.stringify(wixPayload),
