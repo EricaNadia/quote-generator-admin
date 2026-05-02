@@ -1,4 +1,3 @@
-// entry.ts
 // Base44 backend function: publishQuote
 //
 // Architecture role:
@@ -53,8 +52,10 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── Step 3: Read secrets from environment ──────────────────────────────
-    // These are set via: base44 secrets set WIX_ENDPOINT ...
-    // They never appear in React code.
+    // WIX_ENDPOINT and PUBLISH_SECRET are read from environment variables set via:
+    // base44 secrets set WIX_ENDPOINT ...
+    // base44 secrets set PUBLISH_SECRET ...
+    // These values never appear in client-side code or version control.
     const wixEndpoint = Deno.env.get("WIX_ENDPOINT");
     const publishSecret = Deno.env.get("PUBLISH_SECRET");
 
