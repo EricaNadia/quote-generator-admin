@@ -1,21 +1,26 @@
 // QuoteCard.jsx
-// Purely presentational component with precise loading states
+// Displays a single generated quote with Save, Discard, and Publish actions.
+// Uses isLocalLoading to show publishing feedback before parent state updates.
 
 import { useState } from "react";
 
-export default function QuoteCard({ 
-  quote, 
-  onSave, 
-  onDiscard, 
-  onPublish 
+export default function QuoteCard({
+  quote,
+  onSave,
+  onDiscard,
+  onPublish,
+  onPublishSuccess,
+  onPublishError,
 }) {
-  
-  const status = quote.status || "pending";
-  const [localError, setLocalError] = useState(null);
   const [isLocalLoading, setIsLocalLoading] = useState(false);
+  const [localError, setLocalError] = useState(null);
 
-  // Derived busy state for disabling buttons
-  const isBusy = isLocalLoading || status === "publishing";
+  const status = quote.status;
+  const isBusy = isLocalLoading;
+
+  // Show orange publishing style when publish is in flight
+  const displayStatus =
+    isLocalLoading && status === "pending" ? "publishing" : status;
 
   async function handleSave() {
     setIsLocalLoading(true);
@@ -34,8 +39,11 @@ export default function QuoteCard({
     setLocalError(null);
     try {
       await onPublish(quote);
+      onPublishSuccess?.();
     } catch (err) {
-      setLocalError(`Publish failed: ${err.message || err}`);
+      const msg = err.message || String(err);
+      setLocalError(msg);
+      onPublishError?.(msg);
     } finally {
       setIsLocalLoading(false);
     }
@@ -46,9 +54,9 @@ export default function QuoteCard({
   }
 
   return (
-    <div className={`quote-card status-${status}`}>
+    <div className={`quote-card status-${displayStatus}`}>
       <div className="quote-text">{quote.quoteText}</div>
-      <div className="quote-author">— {quote.author}</div>
+      <div className="quote-author">{"— "}{quote.author}</div>
 
       {localError && <div className="quote-error">{localError}</div>}
 
@@ -63,27 +71,11 @@ export default function QuoteCard({
               {isLocalLoading ? "Saving..." : "Save"}
             </button>
             <button
-              className="btn btn-discard"
-              onClick={handleDiscard}
-              disabled={isBusy}
-            >
-              Discard
-            </button>
-          </>
-        )}
-
-        {status === "saved" && (
-          <>
-            <button
               className="btn btn-publish"
               onClick={handlePublish}
               disabled={isBusy}
             >
-              {status === "publishing" 
-                ? "Publishing..." 
-                : isLocalLoading 
-                  ? "Working..." 
-                  : "Publish"}
+              {isLocalLoading ? "Publishing..." : "Publish"}
             </button>
             <button
               className="btn btn-discard"
@@ -93,10 +85,6 @@ export default function QuoteCard({
               Discard
             </button>
           </>
-        )}
-
-        {status === "publishing" && (
-          <span className="status-label">Generating image & publishing...</span>
         )}
 
         {status === "published" && (

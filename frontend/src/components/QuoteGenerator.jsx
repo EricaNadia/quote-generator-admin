@@ -1,25 +1,32 @@
 // QuoteGenerator.jsx
-// Central state manager for quotes with clear publish contract
+// Receives quotes and setQuotes from App.jsx (shared state).
+// Manages the current generation batch via generatedIds.
+// Only shows quotes from the current batch that are still pending.
 
 import { useState } from "react";
 import QuoteCard from "./QuoteCard";
 import { generateQuotes, publishToWix } from "./quoteService";
 
-export default function QuoteGenerator() {
+export default function QuoteGenerator({ quotes, setQuotes, onToast }) {
   const [topic, setTopic] = useState("");
-  const [quotes, setQuotes] = useState([]);
+  const [generatedIds, setGeneratedIds] = useState([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState(null);
+
+  // Show only quotes from this generation batch that are still pending.
+  // Saved quotes are removed from this view (they move to Saved section).
+  // Published quotes are removed from this view (they are done).
+  const currentQuotes = quotes.filter(
+    (q) => generatedIds.includes(q.id) && q.status === "pending"
+  );
 
   async function handleGenerate() {
     if (!topic.trim()) {
       setError("Please enter a topic first.");
       return;
     }
-
     setIsGenerating(true);
     setError(null);
-    setQuotes([]);
 
     try {
       const generated = await generateQuotes(topic.trim());
@@ -30,7 +37,8 @@ export default function QuoteGenerator() {
         status: "pending",
       }));
 
-      setQuotes(withStatus);
+      setQuotes((prev) => [...prev, ...withStatus]);
+      setGeneratedIds(withStatus.map((q) => q.id));
     } catch (err) {
       setError(`Generation failed: ${err.message}`);
     } finally {
@@ -39,55 +47,54 @@ export default function QuoteGenerator() {
   }
 
   function handleSave(quote) {
+    // Move quote to saved state — QuoteGenerator filter removes it from view
+    // because it is no longer "pending". App.jsx Saved section picks it up.
     setQuotes((prev) =>
-      prev.map((q) => (q.id === quote.id ? { ...q, status: "saved" } : q))
+      prev.map((q) =>
+        q.id === quote.id ? { ...q, status: "saved" } : q
+      )
     );
+    onToast("Quote saved ✓", "success");
     return Promise.resolve();
   }
 
   function handleDiscard(quote) {
     setQuotes((prev) => prev.filter((q) => q.id !== quote.id));
+    setGeneratedIds((prev) => prev.filter((id) => id !== quote.id));
   }
 
-  // Fixed: Clear contract + safety guard
   async function handlePublish(quote) {
-  if (quote.status !== "saved") {
-    throw new Error("Quote must be saved before publishing.");
-  }
-
-  // Set status to publishing while we wait
-  setQuotes((prev) =>
-    prev.map((q) =>
-      q.id === quote.id ? { ...q, status: "publishing" } : q
-    )
-  );
-
+  // Do NOT remove from generatedIds yet.
+  // QuoteCard shows orange "Publishing..." while isLocalLoading is true.
+  // We remove from generatedIds only after the call completes.
   try {
-    // Base44 backend function handles image generation and Wix call
     await publishToWix({
       quoteText: quote.quoteText,
       topic: quote.topic,
       author: quote.author,
     });
 
+    // Success: remove from Generated view and mark as published
+    setGeneratedIds((prev) => prev.filter((id) => id !== quote.id));
     setQuotes((prev) =>
       prev.map((q) =>
         q.id === quote.id ? { ...q, status: "published" } : q
       )
     );
+    onToast("Quote published successfully ✓", "success");
   } catch (err) {
-    // Roll back to saved state on failure
-    setQuotes((prev) =>
-      prev.map((q) =>
-        q.id === quote.id ? { ...q, status: "saved" } : q
-      )
-    );
+    // Failure: card stays visible in Generated with error shown on card
+    onToast(`Publish failed: ${err.message}`, "error");
     throw err;
   }
 }
 
   return (
-    <div className="generator">
+    <section className="generate-section">
+      <div className="section-header">
+        <h2 className="section-title">Generate Quotes</h2>
+      </div>
+
       <div className="input-row">
         <input
           type="text"
@@ -109,25 +116,27 @@ export default function QuoteGenerator() {
 
       {error && <div className="error-message">{error}</div>}
 
-      {quotes.length > 0 && (
+      {currentQuotes.length > 0 && (
         <div className="quotes-grid">
-          {quotes.map((quote) => (
+          {currentQuotes.map((quote) => (
             <QuoteCard
               key={quote.id}
               quote={quote}
               onSave={handleSave}
               onDiscard={handleDiscard}
               onPublish={handlePublish}
+              onPublishSuccess={() => {}}
+              onPublishError={() => {}}
             />
           ))}
         </div>
       )}
 
-      {quotes.length === 0 && !isGenerating && !error && (
+      {currentQuotes.length === 0 && !isGenerating && !error && (
         <div className="empty-state">
-          Enter a topic above and click Generate to create quotes.
+          Enter a topic above and click Generate to create 4 quotes.
         </div>
       )}
-    </div>
+    </section>
   );
 }
