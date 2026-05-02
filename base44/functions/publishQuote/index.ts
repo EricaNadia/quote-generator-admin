@@ -1,5 +1,4 @@
 // Base44 backend function: publishQuote
-//
 // Architecture role:
 //   React → base44.functions.invoke("publishQuote") → THIS FUNCTION → Wix HTTP function
 //
@@ -15,7 +14,7 @@ import { createClientFromRequest } from "npm:@base44/sdk";
 // ── Mock configuration ────────────────────────────────────────────────────────
 // Set USE_MOCK = true to skip real AI image generation (saves credits).
 // Switch to false only for final demo.
-const USE_MOCK = true;
+const USE_MOCK = false; // was true
 
 const MOCK_IMAGE_URL =
   "https://placehold.co/600x400?text=Quote+Image";

@@ -3,7 +3,7 @@
 // USE_MOCK = false: real AI generation, uses Base44 integration credits.
 // Switch to false only when building the final demo.
 // Both paths return the same data shape: { id, quoteText, topic, author, status, createdAt }
-export const USE_MOCK = true;
+export const USE_MOCK = false; // was true
 
 // Generate 4 mock quotes based on topic
 export function mockGenerateQuotes(topic) {
